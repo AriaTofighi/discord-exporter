@@ -13,7 +13,7 @@ npm ci
 npm run dev
 ```
 
-Open the address shown in the terminal, usually `http://127.0.0.1:4310`. Keep the terminal open while you use the app. Press **Ctrl+C** to stop it.
+Open the address shown in the terminal, usually `http://localhost:4310`. Keep the terminal open while you use the app. Press **Ctrl+C** to stop it.
 
 To start it again, run `npm run dev` from the project folder.
 
