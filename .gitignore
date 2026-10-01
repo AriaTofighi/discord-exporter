@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.npm-cache/
+.exports/
+.env
+.env.*
+!.env.example
+*.log
+*.zip
+*.pem
+*.key
+*.p12
+*.pfx
+.DS_Store
+Thumbs.db
