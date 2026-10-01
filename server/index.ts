@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { loadEnvFile } from 'node:process';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { DiscordClient, isForum, publicError } from './discord.js';
@@ -10,6 +11,8 @@ import type { SessionView } from '../shared/types.js';
 
 interface Session {
   client?: DiscordClient;
+  initialConnection?: Promise<void>;
+  connectionError?: string;
   job?: ExportTask;
   busy: boolean;
   touched: number;
@@ -23,6 +26,10 @@ class HttpError extends Error {
 const app = express();
 const sessions = new Map<string, Session>();
 const production = process.argv.includes('--production');
+try { loadEnvFile(); } catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Could not read .env. Check its file permissions.');
+}
+const configuredToken = process.env.DISCORD_BOT_TOKEN?.trim() ?? '';
 const snowflake = z.string().regex(/^\d{17,20}$/, 'Enter a valid Discord ID.');
 const optionsSchema = z.object({
   guildId: snowflake,
@@ -96,6 +103,7 @@ function view(session: Session): SessionView {
     } : null,
     guilds: client?.guilds ?? [], messageContentEnabled: client?.messageContentEnabled ?? false,
     inviteUrl: client?.inviteUrl ?? null, job: session.job?.view ?? null,
+    hasConfiguredToken: Boolean(configuredToken), connectionError: session.connectionError ?? null,
   };
 }
 
@@ -105,21 +113,41 @@ async function exclusive<T>(session: Session, operation: () => Promise<T>): Prom
   try { return await operation(); } finally { session.busy = false; }
 }
 
-app.get('/api/session', (_req, res) => { res.json(view(sessionOf(res))); });
-
-app.post('/api/connect', async (req, res) => {
-  const { token } = z.object({ token: z.string().trim().min(20).max(256).regex(/^\S+$/) }).parse(req.body);
-  const session = sessionOf(res);
+async function connectBot(session: Session): Promise<void> {
   await exclusive(session, async () => {
+    if (!configuredToken || !/^\S{20,256}$/.test(configuredToken)) {
+      throw new HttpError(400, 'Set DISCORD_BOT_TOKEN in .env, then restart the app.');
+    }
     if (session.job && activeStatus(session.job.view.status)) throw new HttpError(409, 'Cancel the current export before reconnecting.');
     session.attempts = session.attempts.filter(time => time > Date.now() - 60_000);
-    if (session.attempts.length >= 5) throw new HttpError(429, 'Wait one minute before trying another token.');
+    if (session.attempts.length >= 5) throw new HttpError(429, 'Wait one minute before trying to connect again.');
     session.attempts.push(Date.now());
-    const client = new DiscordClient(token);
+    const client = new DiscordClient(configuredToken);
     try { await client.connect(); } catch (error) { client.dispose(); throw error; }
     session.client?.dispose();
     session.client = client;
+    delete session.connectionError;
   });
+}
+
+app.get('/api/session', async (_req, res) => {
+  const session = sessionOf(res);
+  // Share the first connection attempt across concurrent page loads. An explicit
+  // disconnect leaves this promise settled, so a refresh does not reconnect.
+  if (configuredToken) {
+    session.initialConnection ??= connectBot(session).catch(error => {
+      session.connectionError = error instanceof HttpError ? error.message
+        : `Could not connect with DISCORD_BOT_TOKEN. Check .env and restart the app, or retry if your connection was interrupted. ${publicError(error)}`;
+    });
+    await session.initialConnection;
+  }
+  res.json(view(session));
+});
+
+app.post('/api/connect', async (_req, res) => {
+  const session = sessionOf(res);
+  await connectBot(session);
+  session.initialConnection ??= Promise.resolve();
   res.json(view(session));
 });
 
@@ -132,6 +160,8 @@ app.post('/api/disconnect', async (_req, res) => {
       session.client?.dispose();
       delete session.client;
       delete session.job;
+      delete session.connectionError;
+      session.initialConnection ??= Promise.resolve();
     }
   });
   res.json(view(session));
@@ -248,6 +278,7 @@ async function shutdown() {
   clearInterval(sweep);
   server.close();
   const cleanup = [...sessions.values()].map(async session => {
+    await session.initialConnection;
     await session.job?.remove();
     session.client?.dispose();
   });

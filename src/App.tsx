@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { AlertCircle, Check, ChevronRight, Download, ExternalLink, Eye, EyeOff, FileJson2, FileText, Hash, HelpCircle, LoaderCircle, LockKeyhole, LogOut, MessageSquare, RefreshCw, Search, Server, Volume2, X } from 'lucide-react';
+import { AlertCircle, Check, ChevronRight, Download, ExternalLink, FileJson2, FileText, Hash, HelpCircle, LoaderCircle, LockKeyhole, LogOut, MessageSquare, RefreshCw, Search, Server, Volume2, X } from 'lucide-react';
 import type { Channel, ExportJob, ExportOptions, SessionView } from '../shared/types';
 import { api, ApiError, errorMessage } from './api';
 import { JobProgress, isActive } from './JobProgress';
 import { SetupGuide, SetupSteps } from './SetupGuide';
 
-const emptySession: SessionView = { bot: null, guilds: [], messageContentEnabled: false, inviteUrl: null, job: null };
+const emptySession: SessionView = { bot: null, guilds: [], messageContentEnabled: false, inviteUrl: null, job: null, hasConfiguredToken: false, connectionError: null };
 
 function ChannelIcon({ type }: { type: number }) {
   return type === 15 || type === 16 ? <MessageSquare size={17} /> : type === 2 || type === 13 ? <Volume2 size={17} /> : <Hash size={17} />;
@@ -24,8 +24,6 @@ export function App() {
   const [error, setError] = useState('');
   const [progressError, setProgressError] = useState('');
   const [guideOpen, setGuideOpen] = useState(false);
-  const [token, setToken] = useState('');
-  const [showToken, setShowToken] = useState(false);
   const [guildId, setGuildId] = useState('');
   const [channels, setChannels] = useState<Channel[]>([]);
   const [channelsLoading, setChannelsLoading] = useState(false);
@@ -49,6 +47,7 @@ export function App() {
     const controller = new AbortController();
     api<SessionView>('/session', { signal: controller.signal }).then(data => {
       setSession(data); setJob(data.job); setGuildId(data.guilds[0]?.id ?? '');
+      setError(data.connectionError ?? '');
     }).catch(error => { if (!controller.signal.aborted) setError(errorMessage(error)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
@@ -83,7 +82,7 @@ export function App() {
             const current = await api<SessionView>('/session', { signal: controller.signal });
             setSession(current); setJob(current.job); setProgressError('');
             setGuildId(id => current.guilds.some(guild => guild.id === id) ? id : current.guilds[0]?.id ?? '');
-            if (!current.bot) setError('The local session ended. Connect your bot again.');
+            setError(current.connectionError ?? (!current.bot ? 'The local session ended. Connect your configured bot again.' : ''));
           } catch (recoveryError) {
             if (controller.signal.aborted) return;
             setProgressError(errorMessage(recoveryError));
@@ -114,11 +113,10 @@ export function App() {
     && session.messageContentEnabled && !active && !busy && !channelsLoading;
   const guild = session.guilds.find(item => item.id === guildId);
 
-  async function connect(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError('');
-    const value = token.trim(); setToken(''); setShowToken(false);
+  async function connect() {
+    setBusy(true); setError('');
     try {
-      const data = await api<SessionView>('/connect', { body: { token: value } });
+      const data = await api<SessionView>('/connect', { body: {} });
       setSession(data); setJob(data.job); setGuildId(data.guilds[0]?.id ?? '');
     } catch (error) { setError(errorMessage(error)); } finally { setBusy(false); }
   }
@@ -136,8 +134,8 @@ export function App() {
   async function disconnect() {
     setBusy(true); setError('');
     try {
-      await api('/disconnect', { body: {} });
-      setSession(emptySession); setGuildId(''); setJob(null); setToken('');
+      const data = await api<SessionView>('/disconnect', { body: {} });
+      setSession(data); setGuildId(''); setJob(null);
     } catch (error) { setError(errorMessage(error)); } finally { setBusy(false); }
   }
 
@@ -181,14 +179,18 @@ export function App() {
         <div className="connect-layout">
           <section className="connect-section">
             <div className="section-marker"><LockKeyhole size={22} /></div>
-            <h2>Connect your bot</h2>
-            <form onSubmit={connect} className="connect-form">
-              <label htmlFor="bot-token">Bot token</label>
-              <div className="token-field"><input id="bot-token" type={showToken ? 'text' : 'password'} value={token} onChange={event => setToken(event.target.value)} placeholder="Paste your Discord bot token" autoComplete="off" autoCapitalize="none" spellCheck={false} required minLength={20} maxLength={256} disabled={busy} />
-                <button className="icon-button" type="button" onClick={() => setShowToken(value => !value)} title={showToken ? 'Hide token' : 'Show token'} aria-label={showToken ? 'Hide token' : 'Show token'}>{showToken ? <EyeOff size={18} /> : <Eye size={18} />}</button></div>
-              <p className="field-note">The token stays in this local server's memory until you disconnect or stop the server.</p>
-              <button className="primary" disabled={busy || !token.trim()}>{busy ? <LoaderCircle size={18} className="spin" /> : <LockKeyhole size={18} />}{busy ? 'Connecting...' : 'Connect bot'}</button>
-            </form>
+            <h2>{session.hasConfiguredToken ? 'Connect your bot' : 'Set up your bot once'}</h2>
+            <div className="connection-setup">
+              {session.hasConfiguredToken ? <>
+                <p>Your bot token is configured. Reconnect without entering it again.</p>
+                <button type="button" className="primary" onClick={connect} disabled={busy}>{busy ? <LoaderCircle size={18} className="spin" /> : <LockKeyhole size={18} />}{busy ? 'Connecting...' : 'Connect bot'}</button>
+              </> : <>
+                <p>Copy <code>.env.example</code> to <code>.env</code> in the project folder, then add your token:</p>
+                <pre className="env-example"><code>DISCORD_BOT_TOKEN=your_bot_token</code></pre>
+                <p>Restart the app and reload this page. Your bot will connect automatically each time you start the app.</p>
+              </>}
+              <p className="field-note">The token stays on this computer. Disconnecting does not remove it from .env.</p>
+            </div>
             <div className="format-note"><FileText size={18} /><span>Markdown</span><span className="separator">/</span><FileJson2 size={18} /><span>JSON</span></div>
           </section>
           <aside className="setup-section"><h2>First-time setup</h2><SetupSteps /></aside>

@@ -48,6 +48,8 @@ export interface ExportJob {
 }
 
 export interface SessionView {
+  hasConfiguredToken: boolean;
+  connectionError: string | null;
   bot: { id: string; username: string; avatarUrl: string | null } | null;
   guilds: Guild[];
   messageContentEnabled: boolean;

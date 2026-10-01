@@ -5,7 +5,7 @@ export function SetupSteps() {
   return <ol className="setup-steps">
     <li><strong>Create a Discord application</strong><p>Open the <a href="https://discord.com/developers/applications" target="_blank" rel="noreferrer">Developer Portal <ExternalLink size={13} /></a>, select New Application, and give it a name.</p></li>
     <li><strong>Enable message access</strong><p>On the Bot page, enable Message Content Intent. Keep Public Bot off for a private bot. You do not need Presence or Server Members intents.</p></li>
-    <li><strong>Connect your bot</strong><p>On the Bot page, use Reset Token to create a token if needed. Paste it into this app. Keep the token private.</p></li>
+    <li><strong>Save your bot token</strong><p>Copy .env.example to .env in the project folder and set DISCORD_BOT_TOKEN to your token. Restart the app and reload the page. The bot connects automatically. Keep .env private.</p></li>
     <li><strong>Add it to your server</strong><p>After connecting, use Invite bot. Grant View Channels and Read Message History. Check channel overrides for private channels, then refresh this app.</p></li>
   </ol>;
 }

@@ -60,13 +60,10 @@ input:disabled { cursor: not-allowed; }
 .connect-section { padding: 48px 42px 46px 10px; }
 .section-marker { color: var(--accent); margin-bottom: 20px; }
 .connect-section h2 { font-size: 26px; line-height: 1.25; }
-.connect-form { margin-top: 32px; }
-.connect-form > label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 8px; }
-.token-field { display: flex; align-items: center; position: relative; }
-.token-field input { padding-right: 44px; }
-.token-field .icon-button { position: absolute; right: 4px; }
+.connection-setup { margin-top: 24px; font-size: 14px; }
+.env-example { margin: 16px 0; padding: 12px; background: #f5f6f6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .field-note { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.5; }
-.connect-form .primary { margin-top: 24px; width: 100%; }
+.connection-setup .primary { margin-top: 24px; width: 100%; }
 .format-note { display: flex; align-items: center; gap: 9px; font-size: 13px; color: #778279; margin-top: 45px; }
 .separator { margin: 0 7px; color: #bbc2bd; }
 .setup-section { padding: 48px 20px 36px 42px; border-left: 1px solid var(--line); }
@@ -214,7 +211,7 @@ footer { display: flex; align-items: center; gap: 7px; color: #8a938c; font-size
   .connect-layout { grid-template-columns: 1fr; margin-top: 6px; background: transparent; }
   .connect-section { padding: 30px 0; }
   .connect-section h2 { font-size: 24px; }
-  .connect-form { margin-top: 25px; }
+  .connection-setup { margin-top: 25px; }
   .format-note { margin-top: 26px; }
   .setup-section { border-left: 0; border-top: 1px solid var(--line); padding: 28px 0; }
   .connection-bar { align-items: flex-start; gap: 12px; }
